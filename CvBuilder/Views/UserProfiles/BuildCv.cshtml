@@ -1,0 +1,37 @@
+﻿@model string
+@{
+    ViewData["Title"] = "CV Builder";
+}
+
+<h1 class="mb-3">LaTeX CV Builder</h1>
+<form id="pdf-form" asp-action="CompilePdf" method="post" class="mb-3">
+    <input type="hidden" name="latexCode" id="latex-code-input" />
+    <button type="submit" class="btn btn-primary">Download PDF</button>
+</form>
+<div id="editor-container" style="height: 600px; border: 1px solid grey;"></div>
+
+@section Scripts {
+    <script src="~/vs/loader.js"></script>
+    <script>
+        let editor; // Make editor variable accessible
+
+        require.config({ paths: { 'vs': '/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            // Initialize the editor
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: `@Html.Raw(Model.Replace("\\", "\\\\").Replace("`", "\\`"))`,
+                language: 'latex',
+                theme: 'vs-dark',
+                automaticLayout: true
+            });
+        });
+
+        // Handle the form submission
+        document.getElementById('pdf-form').addEventListener('submit', function (e) {
+            // Get the current content from the editor
+            const editorContent = editor.getValue();
+            // Put it into the hidden input field
+            document.getElementById('latex-code-input').value = editorContent;
+        });
+    </script>
+}
