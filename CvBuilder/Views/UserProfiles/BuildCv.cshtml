@@ -3,21 +3,33 @@
     ViewData["Title"] = "CV Builder";
 }
 
-<h1 class="mb-3">LaTeX CV Builder</h1>
-<form id="pdf-form" asp-action="CompilePdf" method="post" class="mb-3">
-    <input type="hidden" name="latexCode" id="latex-code-input" />
-    <button type="submit" class="btn btn-primary">Download PDF</button>
-</form>
-<div id="editor-container" style="height: 600px; border: 1px solid grey;"></div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>LaTeX CV Builder</h1>
+    <div class="d-flex align-items-center gap-2">
+        <a id="download-link" class="btn btn-success d-none" href="#" download="cv.pdf">Download PDF</a>
+        <button id="recompile-button" class="btn btn-primary">
+            <span id="recompile-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            <span id="recompile-text">Recompile</span>
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div id="editor-container" style="height: 80vh; border: 1px solid grey;"></div>
+    </div>
+    <div class="col-md-6">
+        <iframe id="pdf-preview" style="width: 100%; height: 80vh; border: 1px solid #ccc;" title="PDF Preview"></iframe>
+    </div>
+</div>
 
 @section Scripts {
     <script src="~/vs/loader.js"></script>
     <script>
-        let editor; // Make editor variable accessible
+        let editor;
 
         require.config({ paths: { 'vs': '/vs' } });
         require(['vs/editor/editor.main'], function () {
-            // Initialize the editor
             editor = monaco.editor.create(document.getElementById('editor-container'), {
                 value: `@Html.Raw(Model.Replace("\\", "\\\\").Replace("`", "\\`"))`,
                 language: 'latex',
@@ -26,12 +38,50 @@
             });
         });
 
-        // Handle the form submission
-        document.getElementById('pdf-form').addEventListener('submit', function (e) {
-            // Get the current content from the editor
-            const editorContent = editor.getValue();
-            // Put it into the hidden input field
-            document.getElementById('latex-code-input').value = editorContent;
+        // Simplified Recompile Logic (No Token Handling)
+        const recompileButton = document.getElementById('recompile-button');
+        const recompileSpinner = document.getElementById('recompile-spinner');
+        const recompileText = document.getElementById('recompile-text');
+        const previewFrame = document.getElementById('pdf-preview');
+        const downloadLink = document.getElementById('download-link');
+
+        recompileButton.addEventListener('click', function () {
+            const latexCode = editor.getValue();
+
+            recompileButton.disabled = true;
+            recompileText.innerText = 'Compiling...';
+            recompileSpinner.classList.remove('d-none');
+            downloadLink.classList.add('d-none');
+
+            const formData = new FormData();
+            formData.append('latexCode', latexCode);
+
+            fetch('@Url.Action("PreviewPdf")', {
+                method: 'POST',
+                body: formData
+                // No headers needed for the token anymore
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => { throw new Error(text || 'Compilation failed!') });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const pdfUrl = URL.createObjectURL(blob);
+                previewFrame.src = pdfUrl;
+                downloadLink.href = pdfUrl;
+                downloadLink.classList.remove('d-none');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during PDF compilation. \n\nDetails: ' + error.message);
+            })
+            .finally(() => {
+                recompileButton.disabled = false;
+                recompileText.innerText = 'Recompile';
+                recompileSpinner.classList.add('d-none');
+            });
         });
     </script>
 }

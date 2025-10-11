@@ -40,8 +40,6 @@ namespace CvBuilder.Controllers
             if (id == null) return NotFound();
 
             var userProfile = await GetFullUserProfileAsync();
-
-            // Security check: ensure the id from URL matches the logged-in user's profile
             if (userProfile == null || userProfile.Id != id)
             {
                 return NotFound();
@@ -67,7 +65,6 @@ namespace CvBuilder.Controllers
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 userProfile.ApplicationUserId = userId;
-
                 _context.Add(userProfile);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -79,14 +76,11 @@ namespace CvBuilder.Controllers
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
-
             var userProfile = await GetFullUserProfileAsync();
-
             if (userProfile == null || userProfile.Id != id)
             {
                 return NotFound();
             }
-
             return View(userProfile);
         }
 
@@ -130,11 +124,42 @@ namespace CvBuilder.Controllers
             return View((object)latexCode);
         }
 
-        // POST: /UserProfiles/CompilePdf
+        // POST: /UserProfiles/CompilePdf (For Forced Download)
         [HttpPost]
         public IActionResult CompilePdf([FromForm] string latexCode)
         {
-            if (string.IsNullOrEmpty(latexCode)) return BadRequest("LaTeX code cannot be empty.");
+            var pdfBytes = CompileLatexToPdf(latexCode, out string error);
+            if (pdfBytes == null)
+            {
+                return StatusCode(500, error);
+            }
+            return File(pdfBytes, "application/pdf", "MyCV_LaTeX.pdf");
+        }
+
+        // POST: /UserProfiles/PreviewPdf (For Live Preview)
+        [HttpPost]
+        [IgnoreAntiforgeryToken] // Added to allow AJAX calls without a token
+        public IActionResult PreviewPdf([FromForm] string latexCode)
+        {
+            var pdfBytes = CompileLatexToPdf(latexCode, out string error);
+            if (pdfBytes == null)
+            {
+                return StatusCode(500, error);
+            }
+            // Returns the PDF file directly to be displayed in the browser/iframe
+            return File(pdfBytes, "application/pdf");
+        }
+
+        #region Helper Methods
+
+        private byte[]? CompileLatexToPdf(string latexCode, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            if (string.IsNullOrEmpty(latexCode))
+            {
+                errorMessage = "LaTeX code cannot be empty.";
+                return null;
+            }
 
             var tempId = Guid.NewGuid().ToString();
             var tempDir = Path.Combine(Path.GetTempPath(), tempId);
@@ -145,7 +170,6 @@ namespace CvBuilder.Controllers
             try
             {
                 System.IO.File.WriteAllText(texFilePath, latexCode);
-
                 var processStartInfo = new ProcessStartInfo
                 {
                     FileName = "pdflatex",
@@ -161,13 +185,11 @@ namespace CvBuilder.Controllers
                     process.WaitForExit(30000);
                     if (!System.IO.File.Exists(pdfFilePath))
                     {
-                        string errorLog = process.StandardOutput.ReadToEnd() + "\n" + process.StandardError.ReadToEnd();
-                        return StatusCode(500, "PDF compilation failed. Error: " + errorLog);
+                        errorMessage = "PDF compilation failed. Log: " + process.StandardOutput.ReadToEnd() + "\n" + process.StandardError.ReadToEnd();
+                        return null;
                     }
                 }
-
-                byte[] pdfBytes = System.IO.File.ReadAllBytes(pdfFilePath);
-                return File(pdfBytes, "application/pdf", "MyCV_LaTeX.pdf");
+                return System.IO.File.ReadAllBytes(pdfFilePath);
             }
             finally
             {
@@ -175,9 +197,6 @@ namespace CvBuilder.Controllers
             }
         }
 
-        #region Helper Methods
-
-        // Helper method to get the current user's complete profile with all related data.
         private async Task<UserProfile?> GetFullUserProfileAsync()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -192,8 +211,6 @@ namespace CvBuilder.Controllers
                 .FirstOrDefaultAsync(p => p.ApplicationUserId == userId);
         }
 
-        // Note: Delete methods were omitted for brevity but should be in your final code.
-        // They can also be updated to use the helper method for extra security checks if needed.
         // GET: UserProfiles/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
