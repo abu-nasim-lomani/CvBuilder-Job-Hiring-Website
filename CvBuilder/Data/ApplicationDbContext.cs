@@ -15,6 +15,7 @@ namespace CvBuilder.Data
         public DbSet<Experience> Experiences { get; set; }
         public DbSet<Skill> Skills { get; set; }
         public DbSet<Project> Projects { get; set; }
+        public DbSet<CvTemplate> CvTemplates { get; set; }
     }
 
 

@@ -1,0 +1,188 @@
+﻿@model (CvBuilder.Models.UserProfile userProfile, CvBuilder.Models.CvStylePreferences stylePrefs)
+
+@{
+    ViewData["Title"] = "Visual CV Editor";
+    var profile = Model.userProfile;
+    var style = Model.stylePrefs;
+}
+
+<style>
+    /* Basic styling for the control panel and canvas */
+    :root {
+        --primary-color: @style.PrimaryColor;
+        --text-color: @style.TextColor;
+        --heading-font: '@style.HeadingFont', sans-serif;
+        --body-font: '@style.BodyFont', sans-serif;
+        --body-text-size: @(style.BodyTextSize) pt;
+        --name-size: @(style.NameSize) pt;
+    }
+
+    #cv-canvas {
+        border: 1px solid #ccc;
+        padding: 2rem;
+        background: white;
+        color: var(--text-color);
+        font-family: var(--body-font);
+        font-size: var(--body-text-size);
+    }
+
+        #cv-canvas h1, #cv-canvas h2, #cv-canvas h3 {
+            font-family: var(--heading-font);
+            color: var(--primary-color);
+        }
+
+        #cv-canvas .cv-name {
+            font-size: var(--name-size);
+        }
+
+    #control-panel .list-group-item {
+        cursor: grab;
+    }
+
+    #control-panel .visibility-toggle {
+        cursor: pointer;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Visual CV Editor</h1>
+    <button id="save-button" class="btn btn-success">Save Design</button>
+</div>
+
+<div class="row">
+    <div class="col-md-4" id="control-panel">
+        <div class="card">
+            <div class="card-header">
+                <h5>Controls</h5>
+            </div>
+            <div class="card-body">
+                <h6>Layout & Content</h6>
+                <p class="text-muted small">Drag to reorder sections. Click the eye to show/hide.</p>
+                <ul id="section-list" class="list-group mb-4">
+                    @foreach (var sectionName in style.SectionOrder)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center" data-section="@sectionName">
+                            <span><i class="fas fa-grip-vertical me-2"></i> @sectionName</span>
+                            <i class="fas fa-eye visibility-toggle"></i>
+                        </li>
+                    }
+                </ul>
+
+                <h6>Design & Style</h6>
+                <div class="mb-3">
+                    <label for="primary-color" class="form-label">Primary Color</label>
+                    <input type="color" id="primary-color" class="form-control form-control-color" value="@style.PrimaryColor">
+                </div>
+                <div class="mb-3">
+                    <label for="heading-font" class="form-label">Heading Font</label>
+                    <select id="heading-font" class="form-select">
+                        <option selected>@style.HeadingFont</option>
+                        <option>Arial</option>
+                        <option>Georgia</option>
+                        <option>Lato</option>
+                        <option>Merriweather</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="body-text-size" class="form-label">Body Text Size (pt)</label>
+                    <input type="number" id="body-text-size" class="form-control" value="@style.BodyTextSize" min="9" max="14">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div id="cv-canvas">
+            <div class="text-center mb-4">
+                <h1 class="cv-name">@profile.FullName</h1>
+                <p>@profile.Profession</p>
+                <p>@profile.Phone | @profile.ApplicationUser?.Email | @profile.WebsiteUrl</p>
+            </div>
+
+            @foreach (var sectionName in style.SectionOrder)
+            {
+                <div class="cv-section" data-section-content="@sectionName">
+                    <h3>@sectionName</h3>
+                    <hr class="mt-0 mb-2">
+                    @if (sectionName == "Summary" && profile.Summary != null)
+                    {
+                        <p>@profile.Summary</p>
+                    }
+                    @if (sectionName == "Experience" && profile.Experiences != null)
+                    {
+                        @foreach (var item in profile.Experiences)
+                        {
+                            <p><b>@item.Position</b> at @item.CompanyName</p>
+                        }
+                    }
+                    @if (sectionName == "Education" && profile.Educations != null)
+                    {
+                        @foreach (var item in profile.Educations)
+                        {
+                            <p><b>@item.Degree</b> from @item.Institution</p>
+                        }
+                    }
+                    @if (sectionName == "Skills" && profile.Skills != null)
+                    {
+                        <p>@(string.Join(", ", profile.Skills.Select(s => s.Name)))</p>
+                    }
+                    @if (sectionName == "Projects" && profile.Projects != null)
+                    {
+                        @foreach (var item in profile.Projects)
+                        {
+                            <p><b>@item.Name</b></p>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const root = document.documentElement;
+            const sectionList = document.getElementById('section-list');
+            const canvas = document.getElementById('cv-canvas');
+
+            // --- Initialize SortableJS for drag-and-drop ---
+            new Sortable(sectionList, {
+                animation: 150,
+                handle: '.fa-grip-vertical',
+                onEnd: function (evt) {
+                    // When dragging ends, reorder the sections in the canvas
+                    const sectionName = evt.item.dataset.section;
+                    const movedSection = canvas.querySelector(`[data-section-content="${sectionName}"]`);
+                    const targetSectionName = evt.nextSibling ? evt.nextSibling.dataset.section : null;
+                    if (targetSectionName) {
+                        const targetElement = canvas.querySelector(`[data-section-content="${targetSectionName}"]`);
+                        canvas.insertBefore(movedSection, targetElement);
+                    } else {
+                        canvas.appendChild(movedSection);
+                    }
+                }
+            });
+
+            // --- Live Style Updates using CSS Variables ---
+            document.getElementById('primary-color').addEventListener('input', e => {
+                root.style.setProperty('--primary-color', e.target.value);
+            });
+            document.getElementById('heading-font').addEventListener('change', e => {
+                root.style.setProperty('--heading-font', e.target.value);
+            });
+            document.getElementById('body-text-size').addEventListener('input', e => {
+                root.style.setProperty('--body-text-size', e.target.value + 'pt');
+            });
+
+            // --- Save Button Logic ---
+            const saveButton = document.getElementById('save-button');
+            saveButton.addEventListener('click', function() {
+                // Logic to collect styles and layout will be added in the next step
+                alert('Save functionality will be added next!');
+            });
+        });
+    </script>
+}

@@ -1,0 +1,215 @@
+﻿@model CvBuilderViewModel
+@{
+    ViewData["Title"] = "CV Builder";
+}
+
+<form id="cv-form">
+    @* We add this hidden field to ensure the user's profile ID is sent with the form *@
+    <input type="hidden" asp-for="UserProfile.Id" />
+
+    <div class="container-fluid">
+        <div class="row g-4">
+
+            <div class="col-lg-5">
+                <div class="card shadow-sm" style="height: 85vh; overflow-y: auto;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>CV Details</h5>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="accordion" id="cvAccordion">
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingPersonal">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePersonal" aria-expanded="true" aria-controls="collapsePersonal">
+                                        <strong>Personal Details</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapsePersonal" class="accordion-collapse collapse show" aria-labelledby="headingPersonal" data-bs-parent="#cvAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3">
+                                            <label asp-for="UserProfile.FullName" class="form-label"></label>
+                                            <input asp-for="UserProfile.FullName" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label asp-for="UserProfile.Phone" class="form-label"></label>
+                                            <input asp-for="UserProfile.Phone" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label asp-for="UserProfile.Address" class="form-label"></label>
+                                            <input asp-for="UserProfile.Address" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label asp-for="UserProfile.LinkedInProfileUrl" class="form-label"></label>
+                                            <input asp-for="UserProfile.LinkedInProfileUrl" class="form-control" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label asp-for="UserProfile.WebsiteUrl" class="form-label"></label>
+                                            <input asp-for="UserProfile.WebsiteUrl" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingSummary">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSummary" aria-expanded="false" aria-controls="collapseSummary">
+                                        <strong>Summary</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseSummary" class="accordion-collapse collapse" aria-labelledby="headingSummary" data-bs-parent="#cvAccordion">
+                                    <div class="accordion-body">
+                                        <textarea asp-for="UserProfile.Summary" class="form-control" rows="5"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingExperience">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExperience" aria-expanded="false" aria-controls="collapseExperience">
+                                        <strong>Experience</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseExperience" class="accordion-collapse collapse" aria-labelledby="headingExperience" data-bs-parent="#cvAccordion">
+                                    <div class="accordion-body">
+                                        @for (var i = 0; i < Model.UserProfile.Experiences.Count; i++)
+                                        {
+                                            <div class="card mb-3">
+                                                <div class="card-body">
+                                                    <input type="hidden" asp-for="UserProfile.Experiences[i].Id" />
+                                                    <div class="mb-2">
+                                                        <label asp-for="UserProfile.Experiences[i].Position" class="form-label fw-bold"></label>
+                                                        <input asp-for="UserProfile.Experiences[i].Position" class="form-control" />
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label asp-for="UserProfile.Experiences[i].CompanyName" class="form-label"></label>
+                                                        <input asp-for="UserProfile.Experiences[i].CompanyName" class="form-control" />
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label asp-for="UserProfile.Experiences[i].Description" class="form-label"></label>
+                                                        <textarea asp-for="UserProfile.Experiences[i].Description" class="form-control" rows="3"></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingEducation">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEducation" aria-expanded="false" aria-controls="collapseEducation">
+                                        <strong>Education</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseEducation" class="accordion-collapse collapse" aria-labelledby="headingEducation" data-bs-parent="#cvAccordion">
+                                    <div class="accordion-body">
+                                        @for (var i = 0; i < Model.UserProfile.Educations.Count; i++)
+                                        {
+                                            <div class="card mb-3">
+                                                <div class="card-body">
+                                                    <input type="hidden" asp-for="UserProfile.Educations[i].Id" />
+                                                    <div class="mb-2">
+                                                        <label asp-for="UserProfile.Educations[i].Institution" class="form-label fw-bold"></label>
+                                                        <input asp-for="UserProfile.Educations[i].Institution" class="form-control" />
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label asp-for="UserProfile.Educations[i].Degree" class="form-label"></label>
+                                                        <input asp-for="UserProfile.Educations[i].Degree" class="form-control" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card shadow-sm" style="height: 85vh; display: flex; flex-direction: column;">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="templateId" class="form-label mb-0 me-2">Template:</label>
+                            <select asp-for="SelectedTemplateId" id="templateId" name="templateId" class="form-select-sm" asp-items="@(new SelectList(Model.AvailableTemplates, "Id", "Name"))"></select>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button id="recompile-button" type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
+                                <span id="recompile-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                <i class="bi bi-arrow-repeat"></i>
+                                <span id="recompile-text">Update Preview</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body position-relative" style="flex-grow: 1; padding: 0;">
+                        <div id="initial-loader" class="d-flex justify-content-center align-items-center h-100 flex-column">
+                            <div class="spinner-border text-secondary" role="status"></div>
+                            <p class="mt-3 text-muted">Click 'Update Preview' to generate your CV</p>
+                        </div>
+                        <iframe id="pdf-preview" class="d-none" style="width: 100%; height: 100%; border: none;" title="PDF Preview"></iframe>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    @* --- AJAX script is unchanged --- *@
+    <script>
+        // DOM Elements
+        const recompileBtn = document.getElementById('recompile-button');
+        const cvForm = document.getElementById('cv-form');
+        const previewFrame = document.getElementById('pdf-preview');
+        const initialLoader = document.getElementById('initial-loader');
+        const recompileSpinner = document.getElementById('recompile-spinner');
+
+        // Recompile Function
+        const updatePreview = async () => {
+            // 1. Show loading indicators
+            recompileBtn.disabled = true;
+            recompileSpinner.classList.remove('d-none');
+            previewFrame.classList.add('d-none');
+            initialLoader.classList.remove('d-none');
+
+            // 2. Collect all form data
+            const formData = new FormData(cvForm);
+
+            try {
+                // 3. Send data to the server
+                const response = await fetch('@Url.Action("GeneratePreview", "UserProfiles")', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'PDF generation failed on server.');
+                }
+
+                // 4. Handle the successful response (PDF blob)
+                const blob = await response.blob();
+                const pdfUrl = URL.createObjectURL(blob);
+
+                previewFrame.src = pdfUrl;
+                previewFrame.classList.remove('d-none');
+                initialLoader.classList.add('d-none');
+                toastr.success('Preview updated successfully!');
+
+            } catch (error) {
+                console.error("Error updating preview:", error);
+                toastr.error(error.message, 'Compilation Failed');
+            } finally {
+                // 5. Hide loading indicators
+                recompileBtn.disabled = false;
+                recompileSpinner.classList.add('d-none');
+            }
+        };
+
+        // Event Listener
+        recompileBtn.addEventListener('click', updatePreview);
+    </script>
+}

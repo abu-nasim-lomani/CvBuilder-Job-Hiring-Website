@@ -3,85 +3,186 @@
     ViewData["Title"] = "CV Builder";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>LaTeX CV Builder</h1>
-    <div class="d-flex align-items-center gap-2">
-        <a id="download-link" class="btn btn-success d-none" href="#" download="cv.pdf">Download PDF</a>
-        <button id="recompile-button" class="btn btn-primary">
-            <span id="recompile-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-            <span id="recompile-text">Recompile</span>
-        </button>
-    </div>
-</div>
+<style>
+    /* Custom styles for a professional look */
+    .editor-card, .preview-card {
+        height: 85vh;
+        display: flex;
+        flex-direction: column;
+    }
 
-<div class="row">
-    <div class="col-md-6">
-        <div id="editor-container" style="height: 80vh; border: 1px solid grey;"></div>
+    .card-header-pills .btn {
+        margin-left: 0.5rem;
+    }
+
+    #editor-container, #preview-container {
+        flex-grow: 1;
+        border-top: 1px solid #dee2e6; /* Separator line */
+    }
+
+    #pdf-preview {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    .initial-loader {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        flex-direction: column;
+        color: #6c757d;
+    }
+</style>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm editor-card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-filetype-tex me-2"></i>LaTeX Source Code
+                </h5>
+            </div>
+            <div id="editor-container"></div>
+        </div>
     </div>
-    <div class="col-md-6">
-        <iframe id="pdf-preview" style="width: 100%; height: 80vh; border: 1px solid #ccc;" title="PDF Preview"></iframe>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm preview-card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-file-earmark-pdf me-2"></i>Live Preview
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="recompile-button" class="btn btn-primary d-flex align-items-center gap-2">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span id="recompile-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        <span id="recompile-text">Recompile</span>
+                    </button>
+                    <a id="download-link" class="btn btn-success d-none d-flex align-items-center gap-2" href="#" download="cv.pdf">
+                        <i class="bi bi-download"></i>
+                        <span>Download</span>
+                    </a>
+                </div>
+            </div>
+            <div id="preview-container">
+                <div id="initial-loader" class="initial-loader">
+                    <div class="spinner-border text-secondary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Generating initial preview...</p>
+                </div>
+                <iframe id="pdf-preview" class="d-none" title="PDF Preview"></iframe>
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
     <script src="~/vs/loader.js"></script>
+
     <script>
-        let editor;
+        // --- Toastr Configuration ---
+        // This will work because toastr.js is now loaded globally from _Layout.cshtml
+        toastr.options = {
+            "closeButton": true,
+            "progressBar": true,
+            "positionClass": "toast-bottom-right",
+            "timeOut": "5000"
+        };
 
-        require.config({ paths: { 'vs': '/vs' } });
-        require(['vs/editor/editor.main'], function () {
-            editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: `@Html.Raw(Model.Replace("\\", "\\\\").Replace("`", "\\`"))`,
-                language: 'latex',
-                theme: 'vs-dark',
-                automaticLayout: true
-            });
-        });
-
-        // Simplified Recompile Logic (No Token Handling)
+        // --- DOM Elements ---
         const recompileButton = document.getElementById('recompile-button');
         const recompileSpinner = document.getElementById('recompile-spinner');
         const recompileText = document.getElementById('recompile-text');
         const previewFrame = document.getElementById('pdf-preview');
         const downloadLink = document.getElementById('download-link');
+        const initialLoader = document.getElementById('initial-loader');
 
-        recompileButton.addEventListener('click', function () {
+        let editor;
+
+        // --- Monaco Editor Initialization ---
+        require.config({ paths: { 'vs': '/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: `@Html.Raw(Model.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$"))`,
+                language: 'latex',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                wordWrap: 'on'
+            });
+
+            // Add Ctrl+S shortcut to recompile
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+                recompileAndPreview();
+            });
+        });
+
+        // --- Core Recompilation Logic ---
+        const recompileAndPreview = async () => {
             const latexCode = editor.getValue();
+            if (!latexCode) {
+                toastr.warning("LaTeX code is empty. Nothing to compile.");
+                return;
+            }
 
+            // 1. Set UI to Loading State
             recompileButton.disabled = true;
             recompileText.innerText = 'Compiling...';
             recompileSpinner.classList.remove('d-none');
             downloadLink.classList.add('d-none');
+            if (initialLoader) initialLoader.classList.add('d-none'); // Hide initial loader if it's visible
+            previewFrame.classList.add('d-none'); // Hide iframe during recompilation
 
             const formData = new FormData();
             formData.append('latexCode', latexCode);
 
-            fetch('@Url.Action("PreviewPdf")', {
-                method: 'POST',
-                body: formData
-                // No headers needed for the token anymore
-            })
-            .then(response => {
+            try {
+                // 2. Fetch PDF from Server
+                const response = await fetch('@Url.Action("PreviewPdf")', {
+                    method: 'POST',
+                    body: formData
+                });
+
                 if (!response.ok) {
-                    return response.text().then(text => { throw new Error(text || 'Compilation failed!') });
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Compilation failed on the server.');
                 }
-                return response.blob();
-            })
-            .then(blob => {
+
+                // 3. Process the successful response
+                const blob = await response.blob();
                 const pdfUrl = URL.createObjectURL(blob);
+
                 previewFrame.src = pdfUrl;
                 downloadLink.href = pdfUrl;
+
+                previewFrame.classList.remove('d-none');
                 downloadLink.classList.remove('d-none');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred during PDF compilation. \n\nDetails: ' + error.message);
-            })
-            .finally(() => {
+                toastr.success('PDF compiled successfully!');
+
+            } catch (error) {
+                // 4. Handle any errors
+                console.error('Compilation Error:', error);
+                toastr.error('PDF compilation failed. Check console for details.', 'Error');
+                // Optionally show the initial loader again if compilation fails
+                if(initialLoader) initialLoader.classList.remove('d-none');
+
+            } finally {
+                // 5. Reset UI from Loading State
                 recompileButton.disabled = false;
                 recompileText.innerText = 'Recompile';
                 recompileSpinner.classList.add('d-none');
-            });
+            }
+        };
+
+        // --- Event Listeners ---
+        recompileButton.addEventListener('click', recompileAndPreview);
+
+        // Initial compile when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(recompileAndPreview, 500); // A small delay to ensure editor is ready
         });
+
     </script>
 }

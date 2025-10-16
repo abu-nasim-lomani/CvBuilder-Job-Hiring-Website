@@ -35,10 +35,10 @@ namespace CvBuilder.Models
         [ForeignKey("ApplicationUserId")]
         public virtual IdentityUser? ApplicationUser { get; set; }
 
-        // Navigation property for related Education records
-        public virtual ICollection<Education>? Educations { get; set; }
-        public virtual ICollection<Experience>? Experiences { get; set; }
-        public virtual ICollection<Skill>? Skills { get; set; }
-        public virtual ICollection<Project>? Projects { get; set; }
+        // New, corrected code
+        public virtual List<Education>? Educations { get; set; }
+        public virtual List<Experience>? Experiences { get; set; }
+        public virtual List<Skill>? Skills { get; set; }
+        public virtual List<Project>? Projects { get; set; }
     }
 }
