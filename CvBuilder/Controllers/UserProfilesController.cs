@@ -1,16 +1,15 @@
-﻿// Controllers/UserProfilesController.cs
-
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CvBuilder.Data;
 using CvBuilder.Models;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using CvBuilder.Services; // নতুন সার্ভিস ব্যবহারের জন্য এটি যোগ করুন
+using CvBuilder.Services;
 using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks; // async Task ব্যবহারের জন্য
-using System.Linq; // LINQ ব্যবহারের জন্য
+using System.Threading.Tasks;
+using System.Threading;
+using System;
 
 namespace CvBuilder.Controllers
 {
@@ -18,16 +17,14 @@ namespace CvBuilder.Controllers
     public class UserProfilesController : Controller
     {
         private readonly ApplicationDbContext _context;
-        private readonly LatexCvGenerator _latexCvGenerator; // আমাদের নতুন সার্ভিসটি এখানে যোগ করেছি
+        private readonly LatexCvGenerator _latexCvGenerator;
 
-        // Constructor আপডেট করেছি যাতে LatexCvGenerator সার্ভিসটি এখানে আসে
         public UserProfilesController(ApplicationDbContext context, LatexCvGenerator latexCvGenerator)
         {
             _context = context;
             _latexCvGenerator = latexCvGenerator;
         }
 
-        // --- আমাদের নতুন পেজের জন্য মূল অ্যাকশন ---
         // GET: /UserProfiles/Builder
         [HttpGet]
         public async Task<IActionResult> Builder()
@@ -35,113 +32,61 @@ namespace CvBuilder.Controllers
             var userProfile = await GetFullUserProfileAsync();
             if (userProfile == null)
             {
-                // যদি ব্যবহারকারীর কোনো প্রোফাইল না থাকে, তাকে নতুন প্রোফাইল তৈরির পেজে পাঠান
-                return RedirectToAction("Create", "UserProfiles");
+                // If the user has no profile, redirect them to create one
+                return RedirectToAction("Index");
             }
 
-            // ডাটাবেস থেকে সব টেমপ্লেট লোড করুন
             var templates = await _context.CvTemplates.ToListAsync();
 
-            // আমাদের ViewModel বা "মডেল বক্স" তৈরি করুন
             var viewModel = new CvBuilderViewModel
             {
                 UserProfile = userProfile,
                 AvailableTemplates = templates,
-                // ডিফল্টভাবে প্রথম টেমপ্লেটটি সিলেক্ট করে রাখুন
                 SelectedTemplateId = templates.FirstOrDefault()?.Id ?? 0
             };
 
-            // ViewModel-টিকে নতুন একটি View ফাইলে পাঠান
             return View(viewModel);
         }
 
-
-        // --- AJAX call এর জন্য নতুন Action ---
         // POST: /UserProfiles/GeneratePreview
         [HttpPost]
-        public async Task<IActionResult> GeneratePreview([FromForm] UserProfile userProfile, [FromForm] int templateId)
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> GeneratePreview(int selectedTemplateId) // সরাসরি প্যারামিটার হিসেবে গ্রহণ করুন
         {
-            var template = await _context.CvTemplates.FindAsync(templateId);
+            var template = await _context.CvTemplates.FindAsync(selectedTemplateId); // সরাসরি ব্যবহার করুন
             if (template == null)
             {
                 return NotFound("Template not found.");
             }
 
-            var originalProfile = await GetFullUserProfileAsync();
-            if (originalProfile == null)
+            var userProfileFromDb = await GetFullUserProfileAsync();
+            if (userProfileFromDb == null)
             {
                 return Unauthorized();
             }
 
-            userProfile.ApplicationUser = originalProfile.ApplicationUser;
+            await TryUpdateModelAsync(userProfileFromDb, "UserProfile", p => p.FullName, p => p.Profession, p => p.Summary);
 
-            string latexCode = _latexCvGenerator.Generate(template, userProfile);
+            string latexCode = _latexCvGenerator.Generate(template, userProfileFromDb);
 
-            var pdfBytes = CompileLatexToPdf(latexCode, out string error);
+            var (pdfBytes, error) = await CompileLatexToPdfAsync(latexCode);
             if (pdfBytes == null)
             {
-                return BadRequest(error);
+                return StatusCode(500, error);
             }
 
             return File(pdfBytes, "application/pdf");
         }
 
+        #region Standard CRUD Actions (Index, Details, Create, etc.)
 
-        // --- PDF কম্পাইল করার জন্য Helper Method ---
-        private byte[]? CompileLatexToPdf(string latexCode, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            var tempId = Guid.NewGuid().ToString();
-            var tempDir = Path.Combine(Path.GetTempPath(), tempId);
-            Directory.CreateDirectory(tempDir);
-            var texFilePath = Path.Combine(tempDir, "cv.tex");
-            var pdfFilePath = Path.Combine(tempDir, "cv.pdf");
-
-            try
-            {
-                System.IO.File.WriteAllText(texFilePath, latexCode);
-                var processStartInfo = new ProcessStartInfo
-                {
-                    FileName = "pdflatex",
-                    Arguments = $"-output-directory=\"{tempDir}\" -interaction=nonstopmode \"{texFilePath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-
-                using (var process = Process.Start(processStartInfo))
-                {
-                    process.WaitForExit(30000);
-                    if (!System.IO.File.Exists(pdfFilePath))
-                    {
-                        errorMessage = "PDF compilation failed. Log: " + process.StandardOutput.ReadToEnd() + "\n" + process.StandardError.ReadToEnd();
-                        return null;
-                    }
-                }
-                return System.IO.File.ReadAllBytes(pdfFilePath);
-            }
-            finally
-            {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-            }
-        }
-
-        // GET: UserProfiles
         public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userProfile = await _context.UserProfiles.FirstOrDefaultAsync(p => p.ApplicationUserId == userId);
-
-            if (userProfile == null)
-            {
-                return RedirectToAction(nameof(Create));
-            }
-
-            return RedirectToAction(nameof(Details), new { id = userProfile.Id });
+            return userProfile == null ? RedirectToAction(nameof(Create)) : RedirectToAction(nameof(Details), new { id = userProfile.Id });
         }
 
-        // GET: UserProfiles/Details/5
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
@@ -150,10 +95,8 @@ namespace CvBuilder.Controllers
             return View(userProfile);
         }
 
-        // GET: UserProfiles/Create
         public IActionResult Create() => View();
 
-        // POST: UserProfiles/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("FullName,Phone,Address,Profession,Summary,LinkedInProfileUrl,WebsiteUrl")] UserProfile userProfile)
@@ -170,7 +113,71 @@ namespace CvBuilder.Controllers
             return View(userProfile);
         }
 
-        // --- Helper Methods ---
+        #endregion
+
+        #region Private Helper Methods
+
+        private async Task<(byte[]? pdfBytes, string errorMessage)> CompileLatexToPdfAsync(string latexCode)
+        {
+            if (string.IsNullOrEmpty(latexCode))
+            {
+                return (null, "LaTeX code cannot be empty.");
+            }
+
+            return await Task.Run(() =>
+            {
+                var tempId = Guid.NewGuid().ToString();
+                var tempDir = Path.Combine(Path.GetTempPath(), tempId);
+                try
+                {
+                    Directory.CreateDirectory(tempDir);
+                    System.IO.File.WriteAllText(Path.Combine(tempDir, "cv.tex"), latexCode);
+
+                    var processStartInfo = new ProcessStartInfo
+                    {
+                        FileName = @"C:\texlive\2025\bin\windows\pdflatex.exe",
+                        Arguments = $"-output-directory=\"{tempDir}\" -interaction=nonstopmode cv.tex",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                    };
+
+                    using (var process = Process.Start(processStartInfo))
+                    {
+                        if (process == null) return (null, "Failed to start pdflatex process.");
+                        bool exited = process.WaitForExit(30000);
+                        if (!exited) { process.Kill(true); return (null, "PDF compilation timed out."); }
+
+                        var pdfPath = Path.Combine(tempDir, "cv.pdf");
+                        if (!System.IO.File.Exists(pdfPath))
+                        {
+                            return (null, "Compilation failed. Log: " + process.StandardOutput.ReadToEnd());
+                        }
+
+                        byte[] pdfBytes;
+                        using (var fs = new FileStream(pdfPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        {
+                            using (var ms = new MemoryStream()) { fs.CopyTo(ms); pdfBytes = ms.ToArray(); }
+                        }
+                        return (pdfBytes, string.Empty);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return (null, "A critical server error occurred: " + ex.ToString());
+                }
+                finally
+                {
+                    for (int i = 0; i < 5; i++)
+                    {
+                        try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); break; }
+                        catch (IOException) { Thread.Sleep(100); }
+                    }
+                }
+            });
+        }
+
         private async Task<UserProfile?> GetFullUserProfileAsync()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -185,6 +192,6 @@ namespace CvBuilder.Controllers
                 .FirstOrDefaultAsync(p => p.ApplicationUserId == userId);
         }
 
-        // --- (আমরা Edit, Delete, এবং পুরোনো BuildCv/CompilePdf মেথডগুলো পরে যোগ করব) ---
+        #endregion
     }
 }

@@ -1,19 +1,20 @@
 ﻿using CvBuilder.Models;
+using System.Linq;
 using System.Text;
 
 namespace CvBuilder.Services
 {
-    // 'static' শব্দটি মুছে দিয়েছি
     public class LatexCvGenerator
     {
-        // মূল মেথড, যা একটি টেমপ্লেট এবং ইউজার প্রোফাইল গ্রহণ করে
         public string Generate(CvTemplate template, UserProfile profile)
         {
-            if (template == null || profile == null) return string.Empty;
+            if (template == null || profile == null)
+            {
+                return string.Empty;
+            }
 
             string finalLatex = template.LatexCode;
 
-            // এখন আমরা প্লেসহোল্ডারগুলোকে আসল ডেটা দিয়ে পরিবর্তন করব
             finalLatex = finalLatex.Replace("[[HEADER]]", BuildHeader(profile));
             finalLatex = finalLatex.Replace("[[SUMMARY_SECTION]]", BuildSummarySection(profile));
             finalLatex = finalLatex.Replace("[[EXPERIENCE_SECTION]]", BuildExperienceSection(profile));
@@ -24,7 +25,6 @@ namespace CvBuilder.Services
             return finalLatex;
         }
 
-        // Helper to escape special LaTeX characters
         private string Escape(string? input)
         {
             if (string.IsNullOrEmpty(input)) return "";
@@ -42,7 +42,6 @@ namespace CvBuilder.Services
             return sb.ToString();
         }
 
-        // প্রতিটি সেকশন তৈরির জন্য আলাদা মেথড
         private string BuildHeader(UserProfile profile)
         {
             var sb = new StringBuilder();
@@ -51,7 +50,7 @@ namespace CvBuilder.Services
             sb.AppendLine(@"\vspace{2mm}");
             if (!string.IsNullOrEmpty(profile.Address)) sb.AppendLine($@"{Escape(profile.Address)} \\");
             if (!string.IsNullOrEmpty(profile.Phone)) sb.Append($@"{Escape(profile.Phone)} $\cdot$ ");
-            sb.AppendLine($@"\href{{mailto:{Escape(profile.ApplicationUser?.Email)}}}{{{Escape(profile.ApplicationUser?.Email)}}} \\");
+            if (profile.ApplicationUser != null) sb.AppendLine($@"\href{{mailto:{Escape(profile.ApplicationUser.Email)}}}{{{Escape(profile.ApplicationUser.Email)}}} \\");
             if (!string.IsNullOrEmpty(profile.WebsiteUrl)) sb.Append($@"\href{{{Escape(profile.WebsiteUrl)}}}{{{Escape(profile.WebsiteUrl)}}} $\cdot$ ");
             if (!string.IsNullOrEmpty(profile.LinkedInProfileUrl)) sb.AppendLine($@"\href{{{Escape(profile.LinkedInProfileUrl)}}}{{{Escape(profile.LinkedInProfileUrl)}}}");
             sb.AppendLine(@"\end{center}");

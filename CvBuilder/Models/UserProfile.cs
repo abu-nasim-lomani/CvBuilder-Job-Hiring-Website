@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace CvBuilder.Models
 {
@@ -29,16 +31,39 @@ namespace CvBuilder.Models
         [Url]
         public string? WebsiteUrl { get; set; }
 
-        // Foreign Key for the user from AspNetUsers table
-        public string ApplicationUserId { get; set; }
+        // This property stores the user's design preferences as a JSON string
+        public string? StylePreferencesJson { get; set; }
 
+        // Foreign Key to the Identity User table (AspNetUsers)
+        public string ApplicationUserId { get; set; }
         [ForeignKey("ApplicationUserId")]
         public virtual IdentityUser? ApplicationUser { get; set; }
 
-        // New, corrected code
+        // Navigation properties to related CV sections
         public virtual List<Education>? Educations { get; set; }
         public virtual List<Experience>? Experiences { get; set; }
         public virtual List<Skill>? Skills { get; set; }
         public virtual List<Project>? Projects { get; set; }
+
+        // Helper method to safely read and deserialize the style preferences JSON
+        public CvStylePreferences GetStylePreferences()
+        {
+            if (string.IsNullOrEmpty(StylePreferencesJson))
+            {
+                // If no preferences are saved, return a new default object
+                return new CvStylePreferences();
+            }
+
+            try
+            {
+                // Otherwise, deserialize the saved JSON string
+                return JsonSerializer.Deserialize<CvStylePreferences>(StylePreferencesJson) ?? new CvStylePreferences();
+            }
+            catch (JsonException)
+            {
+                // If the saved JSON is invalid for any reason, return a default object to prevent crashing
+                return new CvStylePreferences();
+            }
+        }
     }
 }

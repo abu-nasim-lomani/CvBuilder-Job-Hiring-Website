@@ -4,7 +4,6 @@
 }
 
 <form id="cv-form">
-    @* We add this hidden field to ensure the user's profile ID is sent with the form *@
     <input type="hidden" asp-for="UserProfile.Id" />
 
     <div class="container-fluid">
@@ -16,7 +15,6 @@
                         <h5 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>CV Details</h5>
                     </div>
                     <div class="card-body">
-
                         <div class="accordion" id="cvAccordion">
 
                             <div class="accordion-item">
@@ -133,7 +131,7 @@
                     <div class="card-header bg-light d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center gap-2">
                             <label for="templateId" class="form-label mb-0 me-2">Template:</label>
-                            <select asp-for="SelectedTemplateId" id="templateId" name="templateId" class="form-select-sm" asp-items="@(new SelectList(Model.AvailableTemplates, "Id", "Name"))"></select>
+                            <select asp-for="SelectedTemplateId" id="templateId" name="SelectedTemplateId" class="form-select-sm" asp-items="@(new SelectList(Model.AvailableTemplates, "Id", "Name"))"></select>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <button id="recompile-button" type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
@@ -158,28 +156,22 @@
 </form>
 
 @section Scripts {
-    @* --- AJAX script is unchanged --- *@
     <script>
-        // DOM Elements
         const recompileBtn = document.getElementById('recompile-button');
         const cvForm = document.getElementById('cv-form');
         const previewFrame = document.getElementById('pdf-preview');
         const initialLoader = document.getElementById('initial-loader');
         const recompileSpinner = document.getElementById('recompile-spinner');
 
-        // Recompile Function
         const updatePreview = async () => {
-            // 1. Show loading indicators
             recompileBtn.disabled = true;
             recompileSpinner.classList.remove('d-none');
             previewFrame.classList.add('d-none');
             initialLoader.classList.remove('d-none');
 
-            // 2. Collect all form data
             const formData = new FormData(cvForm);
 
             try {
-                // 3. Send data to the server
                 const response = await fetch('@Url.Action("GeneratePreview", "UserProfiles")', {
                     method: 'POST',
                     body: formData,
@@ -190,7 +182,6 @@
                     throw new Error(errorText || 'PDF generation failed on server.');
                 }
 
-                // 4. Handle the successful response (PDF blob)
                 const blob = await response.blob();
                 const pdfUrl = URL.createObjectURL(blob);
 
@@ -203,13 +194,11 @@
                 console.error("Error updating preview:", error);
                 toastr.error(error.message, 'Compilation Failed');
             } finally {
-                // 5. Hide loading indicators
                 recompileBtn.disabled = false;
                 recompileSpinner.classList.add('d-none');
             }
         };
 
-        // Event Listener
         recompileBtn.addEventListener('click', updatePreview);
     </script>
 }
