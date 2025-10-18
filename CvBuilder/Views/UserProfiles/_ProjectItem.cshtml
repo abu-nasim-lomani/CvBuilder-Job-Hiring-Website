@@ -1,0 +1,24 @@
+﻿@model CvBuilder.Models.Project
+@{
+    var index = ViewData["index"] ?? 0;
+}
+
+<div class="card mb-3 project-item">
+    <div class="card-body">
+        <button type="button" class="btn-close float-end delete-item-btn" aria-label="Close"></button>
+
+        <input type="hidden" asp-for="Id" name="UserProfile.Projects[@index].Id" />
+        <div class="mb-2">
+            <label asp-for="Name" class="form-label fw-bold"></label>
+            <input asp-for="Name" class="form-control" name="UserProfile.Projects[@index].Name" required />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Url" class="form-label"></label>
+            <input asp-for="Url" class="form-control" name="UserProfile.Projects[@index].Url" placeholder="https://github.com/your-repo" />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="3" name="UserProfile.Projects[@index].Description"></textarea>
+        </div>
+    </div>
+</div>

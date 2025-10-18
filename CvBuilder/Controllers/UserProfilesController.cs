@@ -52,7 +52,7 @@ namespace CvBuilder.Controllers
         [IgnoreAntiforgeryToken]
         public async Task<IActionResult> GeneratePreview()
         {
-            // 1. Get template ID from form
+            // ১. ফর্ম থেকে টেমপ্লেট আইডি নিন
             if (!int.TryParse(Request.Form["SelectedTemplateId"], out var templateId))
             {
                 return BadRequest("Invalid Template ID.");
@@ -63,28 +63,46 @@ namespace CvBuilder.Controllers
                 return NotFound("Template not found.");
             }
 
-            // 2. Create an empty UserProfile to bind form data to
-            var userProfileForPreview = new UserProfile();
+            // ২. ডাটাবেস থেকে আসল প্রোফাইল লোড করুন
+            var userProfileFromDb = await GetFullUserProfileAsync();
+            if (userProfileFromDb == null)
+            {
+                return Unauthorized();
+            }
 
-            // 3. Bind all form data (including new Experience items)
-            // IMPORTANT: Make sure your form names match the UserProfile properties
-            // For lists like Experiences, ensure names are like 'UserProfile.Experiences[0].Position'
-            await TryUpdateModelAsync(userProfileForPreview, "UserProfile",
+            // ৩. ফর্মের সব ডেটা ডাটাবেসের মডেলে বাইন্ড করুন (নতুন আইটেম সহ)
+            await TryUpdateModelAsync(userProfileFromDb, "UserProfile",
                 p => p.FullName, p => p.Profession, p => p.Summary,
-                p => p.Phone, p => p.Address, p => p.LinkedInProfileUrl, p => p.WebsiteUrl, // Added basic fields
-                p => p.Educations, p => p.Experiences, p => p.Skills, p => p.Projects // Added list fields
+                p => p.Phone, p => p.Address, p => p.LinkedInProfileUrl, p => p.WebsiteUrl,
+                p => p.Educations, p => p.Experiences, p => p.Skills, p => p.Projects
             );
 
-            // 4. Add ApplicationUser info from the original profile (needed for email in template)
-            var originalProfile = await GetFullUserProfileAsync();
-            if (originalProfile == null) return Unauthorized();
-            userProfileForPreview.ApplicationUser = originalProfile.ApplicationUser; // Crucial for header
+            // ৪. ডাটাবেসে সব পরিবর্তন সেভ করুন (গুরুত্বপূর্ণ!)
+            try
+            {
+                if (ModelState.IsValid) // Optional: Add extra validation if needed
+                {
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                    return BadRequest("Validation failed: " + string.Join("; ", errors));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"Error saving data during preview: {ex}");
+                return StatusCode(500, "An error occurred while saving changes before preview.");
+            }
 
-            // 5. Generate LaTeX code using the form-bound data
-            string latexCode = _latexCvGenerator.Generate(template, userProfileForPreview);
 
-            // 6. Compile PDF using the CORRECT method name
-            var (pdfBytes, error) = await CompileLatexToPdfAsync(latexCode); // <-- Corrected name
+            // ৫. এখন সেভ হওয়া ডেটা দিয়ে LaTeX কোড তৈরি করুন
+            string latexCode = _latexCvGenerator.Generate(template, userProfileFromDb);
+
+            // ৬. PDF কম্পাইল করুন
+            var (pdfBytes, error) = await CompileLatexToPdfAsync(latexCode);
             if (pdfBytes == null)
             {
                 return StatusCode(500, error);
@@ -341,6 +359,62 @@ namespace CvBuilder.Controllers
             }
 
             _context.Educations.Remove(education);
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+
+        // GET: /UserProfiles/AddSkillItem
+        [HttpGet]
+        public IActionResult AddSkillItem()
+        {
+            // Return partial view with an empty Skill model
+            return PartialView("_SkillItem", new Skill());
+        }
+
+        // POST: /UserProfiles/DeleteSkillItem
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteSkillItem(int skillId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            // Find the skill ensuring it belongs to the current user
+            var skill = await _context.Skills
+                .FirstOrDefaultAsync(s => s.Id == skillId && s.UserProfile.ApplicationUserId == userId);
+
+            if (skill == null)
+            {
+                return NotFound();
+            }
+
+            _context.Skills.Remove(skill);
+            await _context.SaveChangesAsync();
+            return Ok(); // Return success status
+        }
+
+
+        // GET: /UserProfiles/AddProjectItem
+        [HttpGet]
+        public IActionResult AddProjectItem()
+        {
+            return PartialView("_ProjectItem", new Project());
+        }
+
+        // POST: /UserProfiles/DeleteProjectItem
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteProjectItem(int projectId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var project = await _context.Projects
+                .FirstOrDefaultAsync(p => p.Id == projectId && p.UserProfile.ApplicationUserId == userId);
+
+            if (project == null)
+            {
+                return NotFound();
+            }
+
+            _context.Projects.Remove(project);
             await _context.SaveChangesAsync();
             return Ok();
         }

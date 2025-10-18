@@ -1,0 +1,21 @@
+﻿@model CvBuilder.Models.Skill
+@{
+    var index = ViewData["index"] ?? 0;
+}
+
+<div class="mb-3 border p-2 rounded skill-item">
+    <div class="d-flex justify-content-between align-items-center">
+        <input type="hidden" asp-for="Id" name="UserProfile.Skills[@index].Id" />
+        <div class="flex-grow-1 me-2 row gx-2">
+            <div class="col-sm-7">
+                <label asp-for="Name" class="form-label visually-hidden"></label>
+                <input asp-for="Name" class="form-control form-control-sm" placeholder="Skill Name (e.g., C#)" name="UserProfile.Skills[@index].Name" required />
+            </div>
+            <div class="col-sm-5">
+                <label asp-for="Proficiency" class="form-label visually-hidden"></label>
+                <input asp-for="Proficiency" class="form-control form-control-sm" placeholder="Level (e.g., Expert)" name="UserProfile.Skills[@index].Proficiency" />
+            </div>
+        </div>
+        <button type="button" class="btn-close delete-item-btn" style="font-size: 0.8rem;" aria-label="Remove Skill"></button>
+    </div>
+</div>
