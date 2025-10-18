@@ -1,0 +1,30 @@
+﻿@model CvBuilder.Models.Experience
+@{
+    // Get the index passed from the parent view, default to 0 if not provided
+    var index = ViewData["index"] ?? 0;
+}
+
+<div class="card mb-3 experience-item">
+    <div class="card-body">
+        <button type="button" class="btn-close float-end delete-item-btn" aria-label="Close"></button>
+
+        <input type="hidden" asp-for="Id" name="UserProfile.Experiences[@index].Id" />
+        <div class="mb-2">
+            <label asp-for="Position" class="form-label fw-bold"></label>
+            <input asp-for="Position" class="form-control" name="UserProfile.Experiences[@index].Position" />
+        </div>
+        <div class="mb-2">
+            <label asp-for="CompanyName" class="form-label"></label>
+            <input asp-for="CompanyName" class="form-control" name="UserProfile.Experiences[@index].CompanyName" />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="3" name="UserProfile.Experiences[@index].Description"></textarea>
+        </div>
+
+        @* Add hidden fields for dates if needed, following the same naming pattern *@
+        <input type="hidden" asp-for="StartDate" name="UserProfile.Experiences[@index].StartDate" />
+        <input type="hidden" asp-for="EndDate" name="UserProfile.Experiences[@index].EndDate" />
+
+    </div>
+</div>

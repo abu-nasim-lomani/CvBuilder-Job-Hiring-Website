@@ -1,0 +1,31 @@
+﻿@model CvBuilder.Models.Education
+@{
+    var index = ViewData["index"] ?? 0;
+}
+
+<div class="card mb-3 education-item">
+    <div class="card-body">
+        <button type="button" class="btn-close float-end delete-item-btn" aria-label="Close"></button>
+
+        <input type="hidden" asp-for="Id" name="UserProfile.Educations[@index].Id" />
+        <div class="mb-2">
+            <label asp-for="Institution" class="form-label fw-bold"></label>
+            <input asp-for="Institution" class="form-control" name="UserProfile.Educations[@index].Institution" required />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Degree" class="form-label"></label>
+            <input asp-for="Degree" class="form-control" name="UserProfile.Educations[@index].Degree" required />
+        </div>
+        <div class="mb-2">
+            <label asp-for="FieldOfStudy" class="form-label"></label>
+            <input asp-for="FieldOfStudy" class="form-control" name="UserProfile.Educations[@index].FieldOfStudy" />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Grade" class="form-label"></label>
+            <input asp-for="Grade" class="form-control" name="UserProfile.Educations[@index].Grade" />
+        </div>
+        @* Add hidden fields for dates if needed *@
+        <input type="hidden" asp-for="StartDate" name="UserProfile.Educations[@index].StartDate" />
+        <input type="hidden" asp-for="EndDate" name="UserProfile.Educations[@index].EndDate" />
+    </div>
+</div>

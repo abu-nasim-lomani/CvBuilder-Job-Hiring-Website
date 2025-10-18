@@ -4,6 +4,7 @@
 }
 
 <form id="cv-form">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="UserProfile.Id" />
 
     <div class="container-fluid">
@@ -70,26 +71,20 @@
                                 </h2>
                                 <div id="collapseExperience" class="accordion-collapse collapse" aria-labelledby="headingExperience" data-bs-parent="#cvAccordion">
                                     <div class="accordion-body">
-                                        @for (var i = 0; i < Model.UserProfile.Experiences.Count; i++)
-                                        {
-                                            <div class="card mb-3">
-                                                <div class="card-body">
-                                                    <input type="hidden" asp-for="UserProfile.Experiences[i].Id" />
-                                                    <div class="mb-2">
-                                                        <label asp-for="UserProfile.Experiences[i].Position" class="form-label fw-bold"></label>
-                                                        <input asp-for="UserProfile.Experiences[i].Position" class="form-control" />
-                                                    </div>
-                                                    <div class="mb-2">
-                                                        <label asp-for="UserProfile.Experiences[i].CompanyName" class="form-label"></label>
-                                                        <input asp-for="UserProfile.Experiences[i].CompanyName" class="form-control" />
-                                                    </div>
-                                                    <div class="mb-2">
-                                                        <label asp-for="UserProfile.Experiences[i].Description" class="form-label"></label>
-                                                        <textarea asp-for="UserProfile.Experiences[i].Description" class="form-control" rows="3"></textarea>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        }
+                                        <div id="experience-list-container">
+                                            @if (Model.UserProfile.Experiences != null)
+                                            {
+                                                @for (var i = 0; i < Model.UserProfile.Experiences.Count; i++)
+                                                {
+                                                    <partial name="_ExperienceItem" model="Model.UserProfile.Experiences[i]" view-data='new ViewDataDictionary(ViewData) { { "index", i } }' />
+                                                }
+                                            }
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="button" id="add-experience-button" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-plus-circle me-1"></i> Add New Experience
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -102,25 +97,26 @@
                                 </h2>
                                 <div id="collapseEducation" class="accordion-collapse collapse" aria-labelledby="headingEducation" data-bs-parent="#cvAccordion">
                                     <div class="accordion-body">
-                                        @for (var i = 0; i < Model.UserProfile.Educations.Count; i++)
-                                        {
-                                            <div class="card mb-3">
-                                                <div class="card-body">
-                                                    <input type="hidden" asp-for="UserProfile.Educations[i].Id" />
-                                                    <div class="mb-2">
-                                                        <label asp-for="UserProfile.Educations[i].Institution" class="form-label fw-bold"></label>
-                                                        <input asp-for="UserProfile.Educations[i].Institution" class="form-control" />
-                                                    </div>
-                                                    <div class="mb-2">
-                                                        <label asp-for="UserProfile.Educations[i].Degree" class="form-label"></label>
-                                                        <input asp-for="UserProfile.Educations[i].Degree" class="form-control" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        }
+
+                                        <div id="education-list-container">
+                                            @if (Model.UserProfile.Educations != null)
+                                            {
+                                                @for (var i = 0; i < Model.UserProfile.Educations.Count; i++)
+                                                {
+                                                    <partial name="_EducationItem" model="Model.UserProfile.Educations[i]" view-data='new ViewDataDictionary(ViewData) { { "index", i } }' />
+                                                }
+                                            }
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <button type="button" id="add-education-button" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-plus-circle me-1"></i> Add New Education
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                            @* Add Accordion items for Skills and Projects similarly *@
                         </div>
                     </div>
                 </div>
@@ -134,6 +130,12 @@
                             <select asp-for="SelectedTemplateId" id="templateId" name="SelectedTemplateId" class="form-select-sm" asp-items="@(new SelectList(Model.AvailableTemplates, "Id", "Name"))"></select>
                         </div>
                         <div class="d-flex align-items-center gap-2">
+                            <span id="save-status" class="text-muted small me-2"></span>
+                            <button id="save-changes-button" type="button" class="btn btn-success btn-sm d-flex align-items-center gap-1">
+                                <span id="save-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                <i class="bi bi-save"></i>
+                                <span id="save-text">Save Changes</span>
+                            </button>
                             <button id="recompile-button" type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2">
                                 <span id="recompile-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 <i class="bi bi-arrow-repeat"></i>
@@ -157,48 +159,292 @@
 
 @section Scripts {
     <script>
-        const recompileBtn = document.getElementById('recompile-button');
-        const cvForm = document.getElementById('cv-form');
-        const previewFrame = document.getElementById('pdf-preview');
-        const initialLoader = document.getElementById('initial-loader');
-        const recompileSpinner = document.getElementById('recompile-spinner');
+        document.addEventListener('DOMContentLoaded', function () {
+            const recompileBtn = document.getElementById('recompile-button');
+            const cvForm = document.getElementById('cv-form');
+            const previewFrame = document.getElementById('pdf-preview');
+            const initialLoader = document.getElementById('initial-loader');
+            const recompileSpinner = document.getElementById('recompile-spinner');
+            const addExperienceButton = document.getElementById('add-experience-button');
+            const experienceListContainer = document.getElementById('experience-list-container');
+            const saveStatus = document.getElementById('save-status');
+            const saveChangesButton = document.getElementById('save-changes-button');
+            const saveSpinner = document.getElementById('save-spinner');
+            const saveText = document.getElementById('save-text');
+            let experienceIndex = @(Model.UserProfile.Experiences?.Count ?? 0);
+            let debounceTimer;
+            // --- Elements for Education ---
+            const addEducationButton = document.getElementById('add-education-button');
+            const educationListContainer = document.getElementById('education-list-container');
+            let educationIndex = @(Model.UserProfile.Educations?.Count ?? 0);
 
-        const updatePreview = async () => {
-            recompileBtn.disabled = true;
-            recompileSpinner.classList.remove('d-none');
-            previewFrame.classList.add('d-none');
-            initialLoader.classList.remove('d-none');
+            // --- Function to Add New Education Item ---
+            const addEducation = async () => {
+                addEducationButton.disabled = true;
+                try {
+                    const response = await fetch('@Url.Action("AddEducationItem", "UserProfiles")');
+                    if (!response.ok) throw new Error('Failed to load.');
+                    const html = await response.text();
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html.trim();
+                    const newItem = tempDiv.firstChild;
+                    newItem.querySelectorAll('input, textarea, select, label').forEach(el => {
+                        ['name', 'id', 'for'].forEach(attr => {
+                            const currentAttrValue = el.getAttribute(attr);
+                            if (currentAttrValue) {
+                                const newAttrValue = currentAttrValue.replace(/\[0\]/, `[${educationIndex}]`).replace(/__0__/, `_${educationIndex}__`);
+                                el.setAttribute(attr, newAttrValue);
+                            }
+                        });
+                    });
+                    educationListContainer.appendChild(newItem);
+                    educationIndex++;
+                } catch (error) {
+                    console.error('Error adding education:', error);
+                    alert('Could not add new education item.');
+                } finally {
+                    addEducationButton.disabled = false;
+                }
+            };
 
-            const formData = new FormData(cvForm);
+            // --- Function to Handle Deleting an Education Item ---
+            const deleteEducation = async (button) => {
+                const educationItemCard = button.closest('.education-item');
+                const educationIdInput = educationItemCard.querySelector('input[type="hidden"][name$=".Id"]');
+                const educationId = educationIdInput ? educationIdInput.value : null;
 
-            try {
-                const response = await fetch('@Url.Action("GeneratePreview", "UserProfiles")', {
-                    method: 'POST',
-                    body: formData,
-                });
+                if (!educationId || educationId === '0') {
+                    educationItemCard.remove(); return;
+                }
+                if (!confirm('Are you sure you want to delete this education entry?')) { return; }
+                button.disabled = true;
+                try {
+                    const token = cvForm.querySelector('input[name="__RequestVerificationToken"]').value;
+                    const response = await fetch(`@Url.Action("DeleteEducationItem", "UserProfiles")?educationId=${educationId}`, {
+                        method: 'POST', headers: { 'RequestVerificationToken': token }
+                    });
+                    if (!response.ok) throw new Error('Failed to delete item on the server.');
+                    educationItemCard.remove();
+                    // Optional: toastr.success('Education deleted.');
+                } catch (error) {
+                    console.error('Error deleting education:', error);
+                    alert('Could not delete education item.');
+                    button.disabled = false;
+                }
+            };
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'PDF generation failed on server.');
+            // --- Add Event Listeners for Education ---
+            addEducationButton.addEventListener('click', addEducation);
+            educationListContainer.addEventListener('click', function(event) {
+                if (event.target.classList.contains('delete-item-btn')) {
+                    deleteEducation(event.target);
+                }
+            });
+
+            // --- Add Auto-Save Listener for Education ---
+             educationListContainer.addEventListener('input', function(event) {
+                if (event.target.matches('.education-item input[type="text"], .education-item textarea')) {
+                    saveStatus.textContent = 'Typing...';
+                    // Need a separate trigger/debounce for education if you want auto-save
+                    // For simplicity now, we rely on the main "Save Changes" button.
+                }
+            });
+
+            function debounce(func, delay) {
+                return function (...args) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        func.apply(this, args);
+                    }, delay);
+                };
+            }
+
+            const triggerAutoSave = async (inputElement) => {
+                const experienceItemCard = inputElement.closest('.experience-item');
+                if (!experienceItemCard) return;
+                const experienceIdInput = experienceItemCard.querySelector('input[type="hidden"][name$=".Id"]');
+                const experienceId = experienceIdInput ? experienceIdInput.value : null;
+                const fieldName = inputElement.getAttribute('name') ? inputElement.getAttribute('name').split('.').pop() : null;
+                const value = inputElement.value;
+
+                if (!experienceId || experienceId === '0' || !fieldName) {
+                    saveStatus.textContent = '';
+                    return;
                 }
 
-                const blob = await response.blob();
-                const pdfUrl = URL.createObjectURL(blob);
+                saveStatus.textContent = 'Saving...';
 
-                previewFrame.src = pdfUrl;
-                previewFrame.classList.remove('d-none');
-                initialLoader.classList.add('d-none');
-                toastr.success('Preview updated successfully!');
+                try {
+                    const token = cvForm.querySelector('input[name="__RequestVerificationToken"]').value;
+                    const formData = new FormData();
+                    formData.append('experienceId', experienceId);
+                    formData.append('fieldName', fieldName);
+                    formData.append('value', value);
 
-            } catch (error) {
-                console.error("Error updating preview:", error);
-                toastr.error(error.message, 'Compilation Failed');
-            } finally {
-                recompileBtn.disabled = false;
-                recompileSpinner.classList.add('d-none');
-            }
-        };
+                    const response = await fetch('@Url.Action("UpdateExperienceField", "UserProfiles")', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'RequestVerificationToken': token
+                        }
+                    });
 
-        recompileBtn.addEventListener('click', updatePreview);
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(errorText || 'Failed to save field.');
+                    }
+
+                    const result = await response.json();
+                    saveStatus.textContent = result.message;
+
+                } catch (error) {
+                    console.error('Auto-save error:', error);
+                    saveStatus.textContent = 'Error saving!';
+                    alert(`Auto-Save Error: Failed to save ${fieldName}.`);
+                }
+            };
+
+            const debouncedAutoSave = debounce(triggerAutoSave, 1500);
+
+            experienceListContainer.addEventListener('input', function(event) {
+                if (event.target.matches('.experience-item input[type="text"], .experience-item textarea')) {
+                    saveStatus.textContent = 'Typing...';
+                    debouncedAutoSave(event.target);
+                }
+            });
+
+            const updatePreview = async () => {
+                recompileBtn.disabled = true;
+                if(recompileSpinner) recompileSpinner.classList.remove('d-none');
+                previewFrame.classList.add('d-none');
+                initialLoader.classList.remove('d-none');
+                 if(initialLoader.querySelector('p')) initialLoader.querySelector('p').innerText = 'Generating Preview...';
+
+                const formData = new FormData(cvForm);
+                try {
+                    const response = await fetch('@Url.Action("GeneratePreview", "UserProfiles")', { method: 'POST', body: formData });
+                    if (!response.ok) {
+                        const errorText = await response.text(); throw new Error(errorText || 'PDF generation failed.');
+                    }
+                    const blob = await response.blob();
+                    previewFrame.src = URL.createObjectURL(blob);
+                    previewFrame.classList.remove('d-none');
+                    initialLoader.classList.add('d-none');
+                    if(window.toastr) toastr.success('Preview updated successfully!'); else console.log('Preview updated');
+
+                } catch (error) {
+                    console.error("Error updating preview:", error);
+                    alert('Compilation Failed: ' + error.message);
+                } finally {
+                    recompileBtn.disabled = false;
+                     if(recompileSpinner) recompileSpinner.classList.add('d-none');
+                }
+            };
+
+            const addExperience = async () => {
+                addExperienceButton.disabled = true;
+                 try {
+                    const response = await fetch('@Url.Action("AddExperienceItem", "UserProfiles")');
+                    if (!response.ok) throw new Error('Failed to load.');
+                    const html = await response.text();
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html.trim();
+                    const newItem = tempDiv.firstChild;
+                    newItem.querySelectorAll('input, textarea, select, label').forEach(el => {
+                         ['name', 'id', 'for'].forEach(attr => {
+                            const currentAttrValue = el.getAttribute(attr);
+                            if (currentAttrValue) {
+                                const newAttrValue = currentAttrValue.replace(/\[0\]/, `[${experienceIndex}]`).replace(/__0__/, `_${experienceIndex}__`);
+                                el.setAttribute(attr, newAttrValue);
+                            }
+                        });
+                    });
+                    experienceListContainer.appendChild(newItem);
+                    experienceIndex++;
+                 } catch (error) {
+                     console.error('Error adding experience:', error);
+                     alert('Could not add new experience item.');
+                 } finally {
+                     addExperienceButton.disabled = false;
+                 }
+            };
+
+            const deleteExperience = async (button) => {
+                const experienceItemCard = button.closest('.experience-item');
+                const experienceIdInput = experienceItemCard.querySelector('input[type="hidden"][name$=".Id"]');
+                const experienceId = experienceIdInput ? experienceIdInput.value : null;
+
+                if (!experienceId || experienceId === '0') {
+                    experienceItemCard.remove(); return;
+                }
+                if (!confirm('Are you sure you want to delete this experience?')) { return; }
+                button.disabled = true;
+                try {
+                    const token = cvForm.querySelector('input[name="__RequestVerificationToken"]').value;
+                    const response = await fetch(`@Url.Action("DeleteExperienceItem", "UserProfiles")?experienceId=${experienceId}`, {
+                        method: 'POST', headers: { 'RequestVerificationToken': token }
+                    });
+                    if (!response.ok) throw new Error('Failed to delete item on the server.');
+                    experienceItemCard.remove();
+                    if(window.toastr) toastr.success('Experience deleted.'); else console.log('Experience deleted');
+
+                } catch (error) {
+                    console.error('Error deleting experience:', error);
+                    alert('Could not delete experience item.');
+                    button.disabled = false;
+                }
+            };
+
+            saveChangesButton.addEventListener('click', async () => {
+                saveChangesButton.disabled = true;
+                saveText.textContent = 'Saving...';
+                saveSpinner.classList.remove('d-none');
+                saveStatus.textContent = '';
+
+                const formData = new FormData(cvForm);
+                const token = cvForm.querySelector('input[name="__RequestVerificationToken"]').value;
+
+                try {
+                    const response = await fetch('@Url.Action("SaveBuilderData", "UserProfiles")', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                           'RequestVerificationToken': token
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Failed to save changes.');
+                    }
+
+                    saveStatus.textContent = 'Saved ✓';
+                    if (window.toastr) toastr.success(result.message); else alert(result.message);
+
+                     if (document.querySelectorAll('.experience-item input[type="hidden"][name$=".Id"][value="0"]').length > 0) {
+                         window.location.reload();
+                     }
+
+                } catch (error) {
+                    console.error('Error saving changes:', error);
+                    saveStatus.textContent = 'Error!';
+                    alert('Save Failed: ' + error.message);
+                } finally {
+                    saveChangesButton.disabled = false;
+                    saveText.textContent = 'Save Changes';
+                    saveSpinner.classList.add('d-none');
+                }
+            });
+
+            recompileBtn.addEventListener('click', updatePreview);
+            addExperienceButton.addEventListener('click', addExperience);
+            experienceListContainer.addEventListener('click', function(event) {
+                if (event.target.classList.contains('delete-item-btn')) {
+                    deleteExperience(event.target);
+                }
+            });
+
+        });
     </script>
 }
